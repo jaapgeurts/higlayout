@@ -50,15 +50,13 @@ public class HIGLayout extends ViewGroup
   private int colCount;
   private int rowCount;
 
-  private ArrayList[] colComponents;
-  private ArrayList[] rowComponents;
-
   private int[] widenWeights;
   private int[] heightenWeights;
   //
-  // // Add in preferred heights and widths
-  // private int[] preferredWidths;
-  // private int[] preferredHeights;
+  // Add in preferred heights and widths
+  // TODO: rename to calculatedWidths, calculatedHeighs
+  private int[] preferredWidths;
+  private int[] preferredHeights;
 
   private int widenWeightsSum = 0;
   private int heightenWeightsSum = 0;
@@ -152,15 +150,15 @@ public class HIGLayout extends ViewGroup
           "Weights list must match number of columns");
 
     widenWeightsSum = 0;
-    for (int i = 1; i <= colCount; i++)
+    for (int i = 0; i < colCount; i++)
       widenWeightsSum += widenWeights[i];
 
     heightenWeightsSum = 0;
-    for (int i = 1; i <= rowCount; i++)
+    for (int i = 0; i < rowCount; i++)
       heightenWeightsSum += heightenWeights[i];
 
-    colComponents = new ArrayList[colCount];
-    rowComponents = new ArrayList[rowCount];
+    preferredWidths = new int[colCount];
+    preferredHeights = new int[rowCount];
 
     // TODO: add column/row weights
     // a.getString(R.styleable.HIGlayout_column_weights);
@@ -200,11 +198,9 @@ public class HIGLayout extends ViewGroup
     widenWeights = new int[colCount];
     heightenWeights = new int[rowCount];
 
-    // preferredWidths = new int[colCount];
-    // preferredHeights = new int[rowCount];
+    preferredWidths = new int[colCount];
+    preferredHeights = new int[rowCount];
 
-    colComponents = new ArrayList[colCount];
-    rowComponents = new ArrayList[rowCount];
   }
 
   @Override
@@ -218,9 +214,16 @@ public class HIGLayout extends ViewGroup
     int sizeHeight = this.getMeasuredHeight();
     sizeHeight -= this.getPaddingTop() + this.getPaddingBottom();
 
+    if (changed)
+    {
+      // Invalidate the cache. getColumnsX() and getRowsY() will recalc the
+      // cache
+      cacheColumnsX = null;
+      cacheRowsY = null;
+    }
     // TODO: check what this does.
-    int x[] = getColumnsX(sizeWidth,this);
-    int y[] = getRowsY(sizeHeight,this);
+    int x[] = getColumnsX(sizeWidth, this);
+    int y[] = getRowsY(sizeHeight, this);
 
     for (int i = 0; i < count; i++)
     {
@@ -352,8 +355,7 @@ public class HIGLayout extends ViewGroup
     {
       colWidths = (int[])reallocArray(colWidths, colCount + 3);
       widenWeights = (int[])reallocArray(widenWeights, colCount + 3);
-      colComponents = (ArrayList[])reallocArray(colComponents, colCount + 3);
-      // preferredWidths = (int[])reallocArray(preferredWidths, colCount + 3);
+      preferredWidths = (int[])reallocArray(preferredWidths, colCount + 3);
     }
     colWidths[col] = width;
   }
@@ -373,7 +375,7 @@ public class HIGLayout extends ViewGroup
     {
       rowHeights = (int[])reallocArray(rowHeights, rowCount + 3);
       heightenWeights = (int[])reallocArray(heightenWeights, rowCount + 3);
-      rowComponents = (ArrayList[])reallocArray(rowComponents, rowCount + 3);
+      preferredHeights = (int[])reallocArray(preferredHeights, rowCount + 3);
     }
     rowHeights[row] = height;
   }
@@ -387,15 +389,15 @@ public class HIGLayout extends ViewGroup
    *          the width to use in pixels
    * @since 1.0
    */
-  // public void setPreferredColumnWidth(int col, int width)
-  // {
-  // if (col > colCount)
-  // {
-  // throw new IllegalArgumentException("Column index cannot be greater then "
-  // + colCount + ".");
-  // }
-  // preferredWidths[col] = width;
-  // }
+  public void setPreferredColumnWidth(int col, int width)
+  {
+    if (col >= colCount)
+    {
+      throw new IllegalArgumentException("Column index cannot be greater then "
+          + colCount + ".");
+    }
+    preferredWidths[col] = width;
+  }
 
   /**
    * Sets preferred height of specified row. of difference when resizing.
@@ -406,15 +408,15 @@ public class HIGLayout extends ViewGroup
    *          the height in pixels
    * @since 1.0
    */
-  // public void setPreferredRowHeight(int row, int height)
-  // {
-  // if (row > rowCount)
-  // {
-  // throw new IllegalArgumentException("Column index cannot be greater then "
-  // + rowCount + ".");
-  // }
-  // preferredHeights[row] = height;
-  // }
+  public void setPreferredRowHeight(int row, int height)
+  {
+    if (row >= rowCount)
+    {
+      throw new IllegalArgumentException("Column index cannot be greater then "
+          + rowCount + ".");
+    }
+    preferredHeights[row] = height;
+  }
 
   /**
    * Sets weight of specified column. Weight determines distribution of
@@ -425,14 +427,14 @@ public class HIGLayout extends ViewGroup
    */
   public void setColumnWeight(int col, int weight)
   {
-    if (col > colCount)
+    if (col >= colCount)
     {
       throw new RuntimeException("Column index cannot be greater then "
           + colCount + ".");
     }
     widenWeights[col] = weight;
     widenWeightsSum = 0;
-    for (int i = 1; i <= colCount; i++)
+    for (int i = 0; i < colCount; i++)
       widenWeightsSum += widenWeights[i];
   }
 
@@ -445,14 +447,14 @@ public class HIGLayout extends ViewGroup
    */
   public void setRowWeight(int row, int weight)
   {
-    if (row > rowCount)
+    if (row >= rowCount)
     {
       throw new RuntimeException("Column index cannot be greater then "
           + rowCount + ".");
     }
     heightenWeights[row] = weight;
     heightenWeightsSum = 0;
-    for (int i = 1; i <= rowCount; i++)
+    for (int i = 0; i < rowCount; i++)
       heightenWeightsSum += heightenWeights[i];
   }
 
@@ -523,97 +525,24 @@ public class HIGLayout extends ViewGroup
     }
   }
 
-  private int[] calcMinWidths()
-  {
-    int[] widths = new int[colCount + 1];
-    for (int i = 1; i <= colCount; i++)
-    {
-      if (colWidths[i] > 0)
-      {
-        widths[i] = colWidths[i];
-      }
-      else
-      {
-        ArrayList<View> iComps = colComponents[i];
-        int maxWidth = 0;
-        if (iComps != null)
-        {
-          for (int j = iComps.size() - 1; j > -1; j--)
-          {
-            View c = iComps.get(j);
-            int width = c.isVisible() ? c.getMinimumSize().width : 0;
-
-            if (width > 0)
-            {
-              HIGConstraints constr = components.get(c);
-              if (constr.w < 0)
-                width = -constr.w;
-              else
-                width += constr.wCorrection;
-            }
-            maxWidth = (width > maxWidth) ? width : maxWidth;
-          }
-        }
-        widths[i] = maxWidth;
-      }
-    }
-    solveCycles(colWidths, widths);
-
-    return widths;
-  }
-
-  private int[] calcMinHeights()
-  {
-    int[] heights = new int[rowCount + 1];
-    for (int i = 1; i <= rowCount; i++)
-    {
-      if (rowHeights[i] > 0)
-      {
-        heights[i] = rowHeights[i];
-      }
-      else
-      {
-        int maxHeight = 0;
-        ArrayList iComps = rowComponents[i];
-        if (iComps != null)
-        {
-          for (int j = iComps.size() - 1; j > -1; j--)
-          {
-            View c = iComps.get(j);
-            int height = c.isVisible() ? c.getMinimumSize().height : invisible;
-            if (height > 0)
-            {
-              HIGConstraints constr = components.get(c);
-              if (constr.h < 0)
-                height = -constr.h;
-              else
-                height += constr.hCorrection;
-            }
-            maxHeight = (height > maxHeight) ? height : maxHeight;
-          }
-        }
-        heights[i] = maxHeight;
-      }
-    }
-    solveCycles(rowHeights, heights);
-
-    return heights;
-  }
-
   private int[] calcPreferredWidths()
   {
-    int[] widths = new int[colCount + 1];
-    for (int i = 1; i <= colCount; i++)
+    int[] widths = new int[colCount];
+    ArrayList<ArrayList<View>> colComponents;
+
+    colComponents = getViewsInColumns();
+    for (int i = 0; i < colCount; i++)
     {
-      if (colWidths[i] > 0)
+      if (colWidths[i] > 0) // use specified fixed width
       {
         widths[i] = colWidths[i];
       }
-      else if (preferredWidths[i] > 0)
+      else if (preferredWidths[i] > 0) // has already been calculated before
       {
         widths[i] = preferredWidths[i];
       }
       else
+      // has not been calculated
       {
         int maxWidth = 0;
         ArrayList iComps = colComponents[i];
@@ -642,10 +571,34 @@ public class HIGLayout extends ViewGroup
     return widths;
   }
 
+  private ArrayList<ArrayList<View>> getViewsInColumns()
+  {
+    ArrayList<ArrayList<View>> list = new ArrayList<ArrayList<View>>();
+
+    int childCount = getChildCount();
+    for (int i = 0; i < childCount; i++)
+    {
+      View view = getChildAt(i);
+      LayoutParams params = (LayoutParams)view.getLayoutParams();
+      if (params.x == i)
+      {
+        ArrayList<View> subList = list.get(i);
+        if (subList == null)
+        {
+          subList = new ArrayList<View>();
+          list.add(i, subList);
+        }
+        subList.add(i, view);
+      }
+    }
+
+    return list;
+  }
+
   private int[] calcPreferredHeights()
   {
     int[] heights = new int[rowCount + 1];
-    for (int i = 1; i <= rowCount; i++)
+    for (int i = 0; i < rowCount; i++)
     {
       if (rowHeights[i] > 0)
       {
@@ -685,50 +638,22 @@ public class HIGLayout extends ViewGroup
   }
 
   private void distributeSizeDifference(int desiredLength, int[] lengths,
-      int[] minLengths, int[] weights, int weightSum)
+      int[] weights, int weightSum)
   {
     int preferred = 0;
     int newLength;
-    for (int i = lengths.length - 1; i > 0; i--)
+    for (int i = lengths.length - 1; i >= 0; i--)
       preferred += lengths[i];
 
     double unit = ((double)(desiredLength - preferred)) / (double)weightSum;
 
-    for (int i = lengths.length - 1; i > 0; i--)
+    for (int i = lengths.length - 1; i >= 0; i--)
     {
       newLength = lengths[i] + (int)(unit * (double)weights[i]);
-      lengths[i] = (newLength > minLengths[i]) ? newLength : minLengths[i];
+      // TODO: perhaps implement minimum lengths
+      // lengths[i] = (newLength > minLengths[i]) ? newLength : minLengths[i];
+      lengths[i] = newLength;
     }
-  }
-
-  /**
-   * Calculates the preferred size dimensions for the specified container given
-   * the components in the specified parent container.
-   * 
-   * @param parent
-   *          the component to be laid out
-   *
-   * @see #minimumLayoutSize
-   */
-  public Dimension preferredLayoutSize(Container target)
-  {
-    synchronized (target.getTreeLock())
-    {
-      if (cachePreferredLayoutSize != null)
-        return cachePreferredLayoutSize;
-      final int[] prefColWidths = calcPreferredWidths();
-      final int[] prefRowHeights = calcPreferredHeights();
-      Insets insets = target.getInsets();
-      int w = insets.left + insets.right;
-      int h = insets.top + insets.bottom;
-      for (int i = 1; i <= colCount; i++)
-        w += prefColWidths[i];
-      for (int i = 1; i <= rowCount; i++)
-        h += prefRowHeights[i];
-      cachePreferredLayoutSize = new Dimension(w, h);
-      return cachePreferredLayoutSize;
-    }
-
   }
 
   /**
@@ -740,11 +665,11 @@ public class HIGLayout extends ViewGroup
     if (cacheColumnsX != null)
       return cacheColumnsX;
     int[] prefColWidths = calcPreferredWidths();
-    int[] minColWidths = calcMinWidths();
+    // int[] minColWidths = calcMinWidths();
 
-    distributeSizeDifference(targetWidth, prefColWidths, minColWidths,
-        widenWeights, widenWeightsSum);
-    int x[] = new int[colCount + 2];
+    distributeSizeDifference(targetWidth, prefColWidths, widenWeights,
+        widenWeightsSum);
+    int x[] = new int[colCount + 1]; // only 1: padding right is not necessary
     x[0] = v.getPaddingLeft();
 
     for (int i = 1; i <= colCount; i++)
@@ -762,11 +687,11 @@ public class HIGLayout extends ViewGroup
     if (cacheRowsY != null)
       return cacheRowsY;
     int[] prefRowHeights = calcPreferredHeights();
-    int[] minRowHeights = calcMinHeights();
+    // int[] minRowHeights = calcMinHeights();
 
-    distributeSizeDifference(targetHeight, prefRowHeights, minRowHeights,
-        heightenWeights, heightenWeightsSum);
-    int y[] = new int[rowCount + 2];
+    distributeSizeDifference(targetHeight, prefRowHeights, heightenWeights,
+        heightenWeightsSum);
+    int y[] = new int[rowCount + 1]; // only 1: padding right is not necessary
     y[0] = v.getPaddingTop();
 
     for (int i = 1; i <= rowCount; i++)
