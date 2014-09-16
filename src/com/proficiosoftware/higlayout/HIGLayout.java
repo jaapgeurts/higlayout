@@ -1,11 +1,11 @@
 package com.proficiosoftware.higlayout;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 
@@ -45,6 +45,7 @@ public class HIGLayout extends ViewGroup
 
   private static final int WIDTH_ZERO = 0;
   private static final int HEIGHT_ZERO = 0;
+  private static final String LOGTAG = "HIGLayout";
 
   private int[] mColWidths;
   private int[] mRowHeights;
@@ -79,8 +80,48 @@ public class HIGLayout extends ViewGroup
     super(context, attrs, defStyleAttr);
 
     // Gets the styles from XML file
+
     TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.HIGlayout,
         defStyleAttr, 0);
+
+    Log.d(LOGTAG, "Showing ALL attributes:");
+    final int K = attrs.getAttributeCount();
+    for (int j = 0; j < K; j++)
+    {
+      String name = attrs.getAttributeName(j);
+
+      int nr = attrs.getAttributeNameResource(j);
+      int rv = attrs.getAttributeResourceValue(j, -1);
+      Log.d(LOGTAG, "Name: " + name);
+      Log.d(LOGTAG, "NameResource: " + nr);
+      Log.d(LOGTAG, "ResourceValue: " + rv);
+
+    }
+
+    // DEBUG: dump attributes
+    final int N = a.getIndexCount();
+    Log.d(LOGTAG, "Showing FILTERED attributes:");
+    for (int i = 0; i < N; i++)
+    {
+      int attr = a.getIndex(i);
+      switch(attr)
+      {
+        case R.styleable.HIGlayout_column_weights:
+          Log.d(LOGTAG, "HIGlayout_column_weights");
+          break;
+        case R.styleable.HIGlayout_row_heights:
+          Log.d(LOGTAG, "HIGlayout_row_heights");
+          break;
+        case R.styleable.HIGlayout_column_widths:
+          Log.d(LOGTAG, "HIGlayout_column_widths");
+          break;
+        case R.styleable.HIGlayout_row_weights:
+          Log.d(LOGTAG, "HIGlayout_row_weights");
+          break;
+        default:
+          Log.d(LOGTAG, "Spurious attribute: " + attr);
+      }
+    }
 
     try
     {
@@ -160,6 +201,41 @@ public class HIGLayout extends ViewGroup
     a.recycle();
   }
 
+  @Override
+  protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec)
+  {
+    Log.d(LOGTAG, "onMeasure()");
+    super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+  }
+
+  @Override
+  protected boolean checkLayoutParams(ViewGroup.LayoutParams p)
+  {
+    Log.d(LOGTAG, "checkLayoutParams(ViewGroup.LayoutParams)");
+    return p instanceof LayoutParams;
+  }
+
+  @Override
+  protected LayoutParams generateDefaultLayoutParams()
+  {
+    Log.d(LOGTAG, "generateDefaultLayoutParams()");
+    return new LayoutParams();
+  }
+
+  @Override
+  public LayoutParams generateLayoutParams(AttributeSet attrs)
+  {
+    Log.d(LOGTAG, "generateLayoutParams(AttributeSet)");
+    return new LayoutParams(getContext(), attrs);
+  }
+
+  @Override
+  protected LayoutParams generateLayoutParams(ViewGroup.LayoutParams p)
+  {
+    Log.d(LOGTAG, "generateLayoutParams(ViewGroup.LayoutParams)");
+    return generateDefaultLayoutParams(); // TODO Change this?
+  }
+
   /**
    * Converts a string of comma separated integer values to an integer array
    * 
@@ -199,6 +275,7 @@ public class HIGLayout extends ViewGroup
   @Override
   protected void onLayout(boolean changed, int l, int t, int r, int b)
   {
+    Log.d(LOGTAG, "onLayout(booleam,int,int,int,int)");
     final int count = getChildCount();
 
     // get the available size of child view
@@ -455,11 +532,14 @@ public class HIGLayout extends ViewGroup
 
     /* marks of visited vertices. 0 - not visited, 1 - visited, 2 - visited and set final value */
     byte visited[] = new byte[g.length];
-    for (int i = g.length - 1; i > 0; i--)
+    for (int i = g.length - 1; i >= 0; i--)
     {
       if ((g[i] < 0) && (visited[i] == 0))
       {
         int current = i;
+        
+        if (-g[i] > g.length-1)
+          throw new IllegalArgumentException("Column or Row referencing non existing column or row");
 
         /* find cycle or path with cycle */
         stackptr = 0;
@@ -517,7 +597,7 @@ public class HIGLayout extends ViewGroup
   private int[] calcPreferredWidths()
   {
     int[] widths = new int[mColCount];
-    ArrayList<ArrayList<View>> colComponents;
+    ArrayList<View>[] colComponents;
 
     colComponents = getViewsInColumns();
     for (int i = 0; i < mColCount; i++)
@@ -534,7 +614,7 @@ public class HIGLayout extends ViewGroup
       // has not been calculated
       {
         int maxWidth = 0;
-        ArrayList<View> iComps = colComponents.get(i);
+        ArrayList<View> iComps = colComponents[i];
         if (iComps != null)
         {
           for (int j = iComps.size() - 1; j >= 0; j--)
@@ -565,9 +645,10 @@ public class HIGLayout extends ViewGroup
     return widths;
   }
 
-  private ArrayList<ArrayList<View>> getViewsInColumns()
+  @SuppressWarnings("unchecked")
+  private ArrayList<View>[] getViewsInColumns()
   {
-    ArrayList<ArrayList<View>> list = new ArrayList<ArrayList<View>>();
+    ArrayList<?>[] list = new ArrayList<?>[mColCount];
 
     int childCount = getChildCount();
     for (int i = 0; i < childCount; i++)
@@ -576,24 +657,24 @@ public class HIGLayout extends ViewGroup
       LayoutParams params = (LayoutParams)view.getLayoutParams();
       if (params.x == i)
       {
-        ArrayList<View> subList = list.get(i);
+        ArrayList<View> subList = (ArrayList<View>)list[i];
         if (subList == null)
         {
           subList = new ArrayList<View>();
-          list.add(i, subList);
+          list[i] = subList;
         }
-        subList.add(i, view);
+        subList.add(view);
       }
     }
 
-    return list;
+    return (ArrayList<View>[])list;
   }
 
   private int[] calcPreferredHeights()
   {
     int[] heights = new int[mRowCount];
 
-    ArrayList<ArrayList<View>> rowComponents;
+    ArrayList<View>[] rowComponents;
 
     rowComponents = getViewsInRows();
     for (int i = 0; i < mRowCount; i++)
@@ -609,7 +690,7 @@ public class HIGLayout extends ViewGroup
       else
       // has not been calculated
       {
-        ArrayList<View> iComps = rowComponents.get(i);
+        ArrayList<View> iComps = rowComponents[i];
         int maxHeight = 0;
         if (iComps != null)
         {
@@ -639,9 +720,10 @@ public class HIGLayout extends ViewGroup
     return heights;
   }
 
-  private ArrayList<ArrayList<View>> getViewsInRows()
+  @SuppressWarnings("unchecked")
+  private ArrayList<View>[] getViewsInRows()
   {
-    ArrayList<ArrayList<View>> list = new ArrayList<ArrayList<View>>();
+    ArrayList<?>[] list = new ArrayList<?>[mRowCount];
 
     int childCount = getChildCount();
     for (int i = 0; i < childCount; i++)
@@ -650,17 +732,17 @@ public class HIGLayout extends ViewGroup
       LayoutParams params = (LayoutParams)view.getLayoutParams();
       if (params.y == i)
       {
-        ArrayList<View> subList = list.get(i);
+        ArrayList<View> subList = (ArrayList<View>)list[i];
         if (subList == null)
         {
           subList = new ArrayList<View>();
-          list.add(i, subList);
+          list[i] = subList;
         }
-        subList.add(i, view);
+        subList.add(view);
       }
     }
 
-    return list;
+    return (ArrayList<View>[])list;
   }
 
   private void distributeSizeDifference(int desiredLength, int[] lengths,
@@ -728,15 +810,22 @@ public class HIGLayout extends ViewGroup
 
   public static class LayoutParams extends ViewGroup.MarginLayoutParams
   {
-    public int x;
-    public int y;
-    public int w;
-    public int h;
-    public String anchor;
+    public int x = 0;
+    public int y = 0;
+    public int w = 1;
+    public int h = 1;
+    public String anchor = "";
+
+    public LayoutParams()
+    {
+      this(null, null);
+    }
 
     public LayoutParams(Context c, AttributeSet attrs)
     {
       super(c, attrs);
+      if (c == null && attrs == null)
+        return;
       // TODO: get layout params such as position in cell
       TypedArray a = c.obtainStyledAttributes(attrs,
           R.styleable.HIGlayout_Layout);
