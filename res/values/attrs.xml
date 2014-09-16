@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <declare-styleable name="HIGlayout">
+        <attr name="column_widths" format="string" />
+        <attr name="row_heights" format="string" />
+        <attr name="column_weights" format="string" />
+        <attr name="row_weights" format="string" />
+    </declare-styleable>
+    <declare-styleable name="HIGlayout_Layout">
+        <attr name="layout_cellX" format="integer" min="0" />
+        <attr name="layout_cellY" format="integer" min="0" />
+        <attr name="layout_width" format="integer" />
+        <attr name="layout_height" format="integer" />
+        <attr name="layout_anchor" format="string" />
+    </declare-styleable>
+
+</resources>
