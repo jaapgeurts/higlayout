@@ -43,29 +43,26 @@ import android.view.ViewGroup;
 public class HIGLayout extends ViewGroup
 {
 
-  /* since we number rows and columns from 1, size of these arrays 
-   * must be nummber columns + 1*/
-  private int[] colWidths;
-  private int[] rowHeights;
-  private int colCount;
-  private int rowCount;
+  private static final int WIDTH_ZERO = 0;
+  private static final int HEIGHT_ZERO = 0;
 
-  private int[] widenWeights;
-  private int[] heightenWeights;
+  private int[] mColWidths;
+  private int[] mRowHeights;
+  private int mColCount;
+  private int mRowCount;
+
+  private int[] mWidenWeights;
+  private int[] mHeightenWeights;
   //
-  // Add in preferred heights and widths
-  // TODO: rename to calculatedWidths, calculatedHeighs
-  private int[] preferredWidths;
-  private int[] preferredHeights;
+  private int[] mComputedWidths;
+  private int[] mComputedHeights;
 
-  private int widenWeightsSum = 0;
-  private int heightenWeightsSum = 0;
-
-  // private final int invisible = 0;;
+  private int mWidenWeightsSum = 0;
+  private int mHeightenWeightsSum = 0;
 
   /* Following variables are for caching of computations: */
-  private int cacheColumnsX[];
-  private int cacheRowsY[];
+  private int mCacheColumnsX[];
+  private int mCacheRowsY[];
 
   public HIGLayout(Context context)
   {
@@ -90,7 +87,7 @@ public class HIGLayout extends ViewGroup
       String colw = a.getString(R.styleable.HIGlayout_column_widths);
       if (colw == null)
         throw new IllegalArgumentException("Missing attribute: column_widths");
-      colWidths = stringToIntArray(colw);
+      mColWidths = stringToIntArray(colw);
     }
     catch (NumberFormatException nfe)
     {
@@ -103,7 +100,7 @@ public class HIGLayout extends ViewGroup
       String rowh = a.getString(R.styleable.HIGlayout_row_heights);
       if (rowh == null)
         throw new IllegalArgumentException("Missing attribute: row_heights");
-      rowHeights = stringToIntArray(rowh);
+      mRowHeights = stringToIntArray(rowh);
     }
     catch (NumberFormatException nfe)
     {
@@ -111,16 +108,16 @@ public class HIGLayout extends ViewGroup
           "Illegal value in row_heights attribute.", nfe);
     }
 
-    colCount = colWidths.length;
-    rowCount = rowHeights.length;
+    mColCount = mColWidths.length;
+    mRowCount = mRowHeights.length;
 
     try
     {
       String colw = a.getString(R.styleable.HIGlayout_column_weights);
       if (colw == null)
-        widenWeights = new int[colWidths.length];
+        mWidenWeights = new int[mColWidths.length];
       else
-        widenWeights = stringToIntArray(colw);
+        mWidenWeights = stringToIntArray(colw);
     }
     catch (NumberFormatException nfe)
     {
@@ -132,9 +129,9 @@ public class HIGLayout extends ViewGroup
     {
       String roww = a.getString(R.styleable.HIGlayout_row_weights);
       if (roww == null)
-        heightenWeights = new int[rowHeights.length];
+        mHeightenWeights = new int[mRowHeights.length];
       else
-        heightenWeights = stringToIntArray(roww);
+        mHeightenWeights = stringToIntArray(roww);
     }
     catch (NumberFormatException nfe)
     {
@@ -142,27 +139,23 @@ public class HIGLayout extends ViewGroup
           "Illegal value in row_weights attribute.", nfe);
     }
 
-    if (heightenWeights.length != rowCount)
+    if (mHeightenWeights.length != mRowCount)
       throw new IllegalArgumentException(
           "Weights list must match number of rows");
-    if (widenWeights.length != colCount)
+    if (mWidenWeights.length != mColCount)
       throw new IllegalArgumentException(
           "Weights list must match number of columns");
 
-    widenWeightsSum = 0;
-    for (int i = 0; i < colCount; i++)
-      widenWeightsSum += widenWeights[i];
+    mWidenWeightsSum = 0;
+    for (int i = 0; i < mColCount; i++)
+      mWidenWeightsSum += mWidenWeights[i];
 
-    heightenWeightsSum = 0;
-    for (int i = 0; i < rowCount; i++)
-      heightenWeightsSum += heightenWeights[i];
+    mHeightenWeightsSum = 0;
+    for (int i = 0; i < mRowCount; i++)
+      mHeightenWeightsSum += mHeightenWeights[i];
 
-    preferredWidths = new int[colCount];
-    preferredHeights = new int[rowCount];
-
-    // TODO: add column/row weights
-    // a.getString(R.styleable.HIGlayout_column_weights);
-    // a.getString(R.styleable.HIGlayout_row_weights);
+    mComputedWidths = new int[mColCount];
+    mComputedHeights = new int[mRowCount];
 
     a.recycle();
   }
@@ -187,19 +180,19 @@ public class HIGLayout extends ViewGroup
 
   public void setColumnWidthsHeights(int widths[], int heights[])
   {
-    colCount = widths.length;
-    rowCount = heights.length;
+    mColCount = widths.length;
+    mRowCount = heights.length;
 
-    colWidths = new int[colCount];
-    System.arraycopy(widths, 0, colWidths, 0, colCount);
-    rowHeights = new int[rowCount];
-    System.arraycopy(heights, 0, rowHeights, 0, rowCount);
+    mColWidths = new int[mColCount];
+    System.arraycopy(widths, 0, mColWidths, 0, mColCount);
+    mRowHeights = new int[mRowCount];
+    System.arraycopy(heights, 0, mRowHeights, 0, mRowCount);
 
-    widenWeights = new int[colCount];
-    heightenWeights = new int[rowCount];
+    mWidenWeights = new int[mColCount];
+    mHeightenWeights = new int[mRowCount];
 
-    preferredWidths = new int[colCount];
-    preferredHeights = new int[rowCount];
+    mComputedWidths = new int[mColCount];
+    mComputedHeights = new int[mRowCount];
 
   }
 
@@ -218,8 +211,8 @@ public class HIGLayout extends ViewGroup
     {
       // Invalidate the cache. getColumnsX() and getRowsY() will recalc the
       // cache
-      cacheColumnsX = null;
-      cacheRowsY = null;
+      mCacheColumnsX = null;
+      mCacheRowsY = null;
     }
     // TODO: check what this does.
     int x[] = getColumnsX(sizeWidth, this);
@@ -233,10 +226,6 @@ public class HIGLayout extends ViewGroup
       // Get the Views specific properties (like position and anchoring)
       LayoutParams c = (LayoutParams)child.getLayoutParams();
       /* first we centre component into cell */
-
-      child.measure(
-          MeasureSpec.makeMeasureSpec(sizeWidth, MeasureSpec.AT_MOST),
-          MeasureSpec.makeMeasureSpec(sizeHeight, MeasureSpec.AT_MOST));
 
       int width = child.getMeasuredWidth();
       int height = child.getMeasuredHeight();
@@ -347,17 +336,17 @@ public class HIGLayout extends ViewGroup
    */
   public void setColumnWidth(int col, int width)
   {
-    if (colCount < col)
+    if (mColCount < col)
     {
-      colCount = col;
+      mColCount = col;
     }
-    if (colWidths.length <= col)
+    if (mColWidths.length <= col)
     {
-      colWidths = (int[])reallocArray(colWidths, colCount + 3);
-      widenWeights = (int[])reallocArray(widenWeights, colCount + 3);
-      preferredWidths = (int[])reallocArray(preferredWidths, colCount + 3);
+      mColWidths = (int[])reallocArray(mColWidths, mColCount + 3);
+      mWidenWeights = (int[])reallocArray(mWidenWeights, mColCount + 3);
+      mComputedWidths = (int[])reallocArray(mComputedWidths, mColCount + 3);
     }
-    colWidths[col] = width;
+    mColWidths[col] = width;
   }
 
   /**
@@ -367,17 +356,17 @@ public class HIGLayout extends ViewGroup
    */
   public void setRowHeight(int row, int height)
   {
-    if (rowCount < row)
+    if (mRowCount < row)
     {
-      rowCount = row;
+      mRowCount = row;
     }
-    if (rowHeights.length <= row)
+    if (mRowHeights.length <= row)
     {
-      rowHeights = (int[])reallocArray(rowHeights, rowCount + 3);
-      heightenWeights = (int[])reallocArray(heightenWeights, rowCount + 3);
-      preferredHeights = (int[])reallocArray(preferredHeights, rowCount + 3);
+      mRowHeights = (int[])reallocArray(mRowHeights, mRowCount + 3);
+      mHeightenWeights = (int[])reallocArray(mHeightenWeights, mRowCount + 3);
+      mComputedHeights = (int[])reallocArray(mComputedHeights, mRowCount + 3);
     }
-    rowHeights[row] = height;
+    mRowHeights[row] = height;
   }
 
   /**
@@ -391,12 +380,12 @@ public class HIGLayout extends ViewGroup
    */
   public void setPreferredColumnWidth(int col, int width)
   {
-    if (col >= colCount)
+    if (col >= mColCount)
     {
       throw new IllegalArgumentException("Column index cannot be greater then "
-          + colCount + ".");
+          + mColCount + ".");
     }
-    preferredWidths[col] = width;
+    mComputedWidths[col] = width;
   }
 
   /**
@@ -410,12 +399,12 @@ public class HIGLayout extends ViewGroup
    */
   public void setPreferredRowHeight(int row, int height)
   {
-    if (row >= rowCount)
+    if (row >= mRowCount)
     {
       throw new IllegalArgumentException("Column index cannot be greater then "
-          + rowCount + ".");
+          + mRowCount + ".");
     }
-    preferredHeights[row] = height;
+    mComputedHeights[row] = height;
   }
 
   /**
@@ -427,15 +416,15 @@ public class HIGLayout extends ViewGroup
    */
   public void setColumnWeight(int col, int weight)
   {
-    if (col >= colCount)
+    if (col >= mColCount)
     {
       throw new RuntimeException("Column index cannot be greater then "
-          + colCount + ".");
+          + mColCount + ".");
     }
-    widenWeights[col] = weight;
-    widenWeightsSum = 0;
-    for (int i = 0; i < colCount; i++)
-      widenWeightsSum += widenWeights[i];
+    mWidenWeights[col] = weight;
+    mWidenWeightsSum = 0;
+    for (int i = 0; i < mColCount; i++)
+      mWidenWeightsSum += mWidenWeights[i];
   }
 
   /**
@@ -447,15 +436,15 @@ public class HIGLayout extends ViewGroup
    */
   public void setRowWeight(int row, int weight)
   {
-    if (row >= rowCount)
+    if (row >= mRowCount)
     {
       throw new RuntimeException("Column index cannot be greater then "
-          + rowCount + ".");
+          + mRowCount + ".");
     }
-    heightenWeights[row] = weight;
-    heightenWeightsSum = 0;
-    for (int i = 0; i < rowCount; i++)
-      heightenWeightsSum += heightenWeights[i];
+    mHeightenWeights[row] = weight;
+    mHeightenWeightsSum = 0;
+    for (int i = 0; i < mRowCount; i++)
+      mHeightenWeightsSum += mHeightenWeights[i];
   }
 
   private void solveCycles(int g[], int lengths[])
@@ -527,38 +516,43 @@ public class HIGLayout extends ViewGroup
 
   private int[] calcPreferredWidths()
   {
-    int[] widths = new int[colCount];
+    int[] widths = new int[mColCount];
     ArrayList<ArrayList<View>> colComponents;
 
     colComponents = getViewsInColumns();
-    for (int i = 0; i < colCount; i++)
+    for (int i = 0; i < mColCount; i++)
     {
-      if (colWidths[i] > 0) // use specified fixed width
+      if (mColWidths[i] > 0) // use specified fixed width
       {
-        widths[i] = colWidths[i];
+        widths[i] = mColWidths[i];
       }
-      else if (preferredWidths[i] > 0) // has already been calculated before
+      else if (mComputedWidths[i] > 0) // has already been calculated before
       {
-        widths[i] = preferredWidths[i];
+        widths[i] = mComputedWidths[i];
       }
       else
       // has not been calculated
       {
         int maxWidth = 0;
-        ArrayList iComps = colComponents[i];
+        ArrayList<View> iComps = colComponents.get(i);
         if (iComps != null)
         {
-          for (int j = iComps.size() - 1; j > -1; j--)
+          for (int j = iComps.size() - 1; j >= 0; j--)
           {
             View c = iComps.get(j);
-            int width = c.isVisible() ? c.getPreferredSize().width : invisible;
+            // TODO: check if match_parent works
+            c.measure(MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED),
+                MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
+            int width = c.getVisibility() != View.GONE ? c.getMeasuredWidth()
+                : WIDTH_ZERO;
             if (width > 0)
             {
-              HIGConstraints constr = components.get(c);
-              if (constr.w < 0)
-                width = -constr.w;
-              else
-                width += constr.wCorrection;
+              LayoutParams params = (LayoutParams)c.getLayoutParams();
+              if (params.w < 0)
+                width = -params.w;
+              // TODO: consider adding corrections back in
+              // else
+              // width += constr.wCorrection;
             }
             maxWidth = (width > maxWidth) ? width : maxWidth;
           }
@@ -566,7 +560,7 @@ public class HIGLayout extends ViewGroup
         widths[i] = maxWidth;
       }
     }
-    solveCycles(colWidths, widths);
+    solveCycles(mColWidths, widths);
 
     return widths;
   }
@@ -597,35 +591,43 @@ public class HIGLayout extends ViewGroup
 
   private int[] calcPreferredHeights()
   {
-    int[] heights = new int[rowCount + 1];
-    for (int i = 0; i < rowCount; i++)
+    int[] heights = new int[mRowCount];
+
+    ArrayList<ArrayList<View>> rowComponents;
+
+    rowComponents = getViewsInRows();
+    for (int i = 0; i < mRowCount; i++)
     {
-      if (rowHeights[i] > 0)
+      if (mRowHeights[i] > 0)// use specified fixed width
       {
-        heights[i] = rowHeights[i];
+        heights[i] = mRowHeights[i];
       }
-      else if (preferredHeights[i] > 0)
+      else if (mComputedHeights[i] > 0) // has already been calculated before
       {
-        heights[i] = preferredHeights[i];
+        heights[i] = mComputedHeights[i];
       }
       else
+      // has not been calculated
       {
-        ArrayList iComps = rowComponents[i];
+        ArrayList<View> iComps = rowComponents.get(i);
         int maxHeight = 0;
         if (iComps != null)
         {
           for (int j = iComps.size() - 1; j >= 0; j--)
           {
             View c = iComps.get(j);
-            int height = c.isVisible() ? c.getPreferredSize().height
-                : invisible;
+            c.measure(MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED),
+                MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
+            int height = c.getVisibility() != View.GONE ? c.getMeasuredHeight()
+                : HEIGHT_ZERO;
             if (height > 0)
             {
-              HIGConstraints constr = components.get(c);
-              if (constr.h < 0)
-                height = -constr.h;
-              else
-                height += constr.hCorrection;
+              LayoutParams params = (LayoutParams)c.getLayoutParams();
+              if (params.h < 0)
+                height = -params.h;
+              // TODO: consider adding corrections
+              // else
+              // height += constr.hCorrection;
             }
             maxHeight = (height > maxHeight) ? height : maxHeight;
           }
@@ -633,8 +635,32 @@ public class HIGLayout extends ViewGroup
         heights[i] = maxHeight;
       }
     }
-    solveCycles(rowHeights, heights);
+    solveCycles(mRowHeights, heights);
     return heights;
+  }
+
+  private ArrayList<ArrayList<View>> getViewsInRows()
+  {
+    ArrayList<ArrayList<View>> list = new ArrayList<ArrayList<View>>();
+
+    int childCount = getChildCount();
+    for (int i = 0; i < childCount; i++)
+    {
+      View view = getChildAt(i);
+      LayoutParams params = (LayoutParams)view.getLayoutParams();
+      if (params.y == i)
+      {
+        ArrayList<View> subList = list.get(i);
+        if (subList == null)
+        {
+          subList = new ArrayList<View>();
+          list.add(i, subList);
+        }
+        subList.add(i, view);
+      }
+    }
+
+    return list;
   }
 
   private void distributeSizeDifference(int desiredLength, int[] lengths,
@@ -662,19 +688,19 @@ public class HIGLayout extends ViewGroup
    */
   int[] getColumnsX(int targetWidth, View v)
   {
-    if (cacheColumnsX != null)
-      return cacheColumnsX;
+    if (mCacheColumnsX != null)
+      return mCacheColumnsX;
     int[] prefColWidths = calcPreferredWidths();
     // int[] minColWidths = calcMinWidths();
 
-    distributeSizeDifference(targetWidth, prefColWidths, widenWeights,
-        widenWeightsSum);
-    int x[] = new int[colCount + 1]; // only 1: padding right is not necessary
+    distributeSizeDifference(targetWidth, prefColWidths, mWidenWeights,
+        mWidenWeightsSum);
+    int x[] = new int[mColCount + 1]; // only 1: padding right is not necessary
     x[0] = v.getPaddingLeft();
 
-    for (int i = 1; i <= colCount; i++)
+    for (int i = 1; i <= mColCount; i++)
       x[i] = x[i - 1] + prefColWidths[i - 1];
-    cacheColumnsX = x;
+    mCacheColumnsX = x;
     return x;
   }
 
@@ -684,19 +710,19 @@ public class HIGLayout extends ViewGroup
    */
   int[] getRowsY(int targetHeight, View v)
   {
-    if (cacheRowsY != null)
-      return cacheRowsY;
+    if (mCacheRowsY != null)
+      return mCacheRowsY;
     int[] prefRowHeights = calcPreferredHeights();
     // int[] minRowHeights = calcMinHeights();
 
-    distributeSizeDifference(targetHeight, prefRowHeights, heightenWeights,
-        heightenWeightsSum);
-    int y[] = new int[rowCount + 1]; // only 1: padding right is not necessary
+    distributeSizeDifference(targetHeight, prefRowHeights, mHeightenWeights,
+        mHeightenWeightsSum);
+    int y[] = new int[mRowCount + 1]; // only 1: padding right is not necessary
     y[0] = v.getPaddingTop();
 
-    for (int i = 1; i <= rowCount; i++)
+    for (int i = 1; i <= mRowCount; i++)
       y[i] = y[i - 1] + prefRowHeights[i - 1];
-    cacheRowsY = y;
+    mCacheRowsY = y;
     return y;
   }
 
