@@ -9,6 +9,7 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.util.AttributeSet;
 import android.util.Log;
+import android.util.TypedValue;
 import android.view.View;
 import android.view.ViewGroup;
 
@@ -65,6 +66,8 @@ public class HIGLayout extends ViewGroup
 
   private int mWidenWeightsSum = 0;
   private int mHeightenWeightsSum = 0;
+  private int[] cacheColumnsX;
+  private int[] cacheRowsY;
 
   public HIGLayout(Context context)
   {
@@ -190,22 +193,8 @@ public class HIGLayout extends ViewGroup
     Log.d(LOGTAG, "onLayout(booleam,int,int,int,int)");
     final int count = getChildCount();
 
-    // get the available size of child view
-    int sizeWidth = this.getMeasuredWidth();
-    sizeWidth -= this.getPaddingLeft() + this.getPaddingRight();
-    int sizeHeight = this.getMeasuredHeight();
-    sizeHeight -= this.getPaddingTop() + this.getPaddingBottom();
-
-    if (changed)
-    {
-      // Invalidate the cache. getColumnsX() and getRowsY() will recalc the
-      // cache
-      mComputedWidths = null;
-      mComputedHeights = null;
-    }
-    // TODO: check what this does.
-    int x[] = getColumnsX(sizeWidth, this);
-    int y[] = getRowsY(sizeHeight, this);
+    int x[] = getColumnsX();
+    int y[] = getRowsY();
 
     for (int i = 0; i < count; i++)
     {
@@ -300,6 +289,7 @@ public class HIGLayout extends ViewGroup
       // child.setBounds((int)compx + c.xCorrection, (int)compy + c.yCorrection,
       // width, height);
       // child.layout(l,t,r,b);
+      Log.d(LOGTAG, child.getTag() + " must be: " + width + "x" + height);
       child.layout((int)compx, (int)compy, (int)(compx + width),
           (int)(compy + height));
     }
@@ -310,10 +300,49 @@ public class HIGLayout extends ViewGroup
   protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec)
   {
     super.onMeasure(widthMeasureSpec, heightMeasureSpec);
-    Log.d(LOGTAG, "onMeasure(): " + getMeasuredWidth() + "x" + getMeasuredHeight());
-    mComputedWidths = calcWidths();
-    mComputedHeights = calcHeights();
+    Log.d(LOGTAG, "onMeasure(): " + getMeasuredWidth() + "x"
+        + getMeasuredHeight());
+    Log.d(LOGTAG, "Padding l,r,t,b: " + getPaddingLeft() + ","
+        + getPaddingRight() + "," + getPaddingTop() + "," + getPaddingBottom());
+
+    // First ask all childviews to measure and give us their preferred sizes
+    measureChildren(MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED),
+        MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
+
+    final int childCount = getChildCount();
+    for (int i = 0; i < childCount; i++)
+    {
+      View c = getChildAt(i);
+      Log.d(LOGTAG,
+          "M:: " + c.getTag() + " wants to be: " + c.getMeasuredWidth() + "x"
+              + c.getMeasuredHeight());
+    }
+    calcWidths();
+    distributeSizeDifference(getMeasuredWidth()
+        - (getPaddingLeft() + getPaddingRight()), mComputedWidths,
+        mWidenWeights, mWidenWeightsSum);
+
+    calcHeights();
+    distributeSizeDifference(getMeasuredHeight()
+        - (getPaddingTop() + getPaddingBottom()), mComputedHeights,
+        mHeightenWeights, mHeightenWeightsSum);
+
+    printComputedWidths();
     invalidate();
+  }
+
+  private void printComputedWidths()
+  {
+    String s = String.valueOf(mComputedWidths[0]);
+    for (int i = 1; i < mColCount; i++)
+      s += "," + mComputedWidths[i];
+    Log.d(LOGTAG, "Colwidths: " + s);
+
+    s = String.valueOf(mComputedHeights[0]);
+    for (int i = 1; i < mRowCount; i++)
+      s += "," + mComputedHeights[i];
+    Log.d(LOGTAG, "Rowheights: " + s);
+
   }
 
   @Override
@@ -329,18 +358,28 @@ public class HIGLayout extends ViewGroup
     int width = this.getWidth();
     Paint paint = new Paint();
     paint.setColor(Color.GREEN);
-    paint.setStrokeWidth(0);
+    float ht_px = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 1,
+        getResources().getDisplayMetrics());
+    paint.setStrokeWidth(ht_px);
     paint.setStyle(Paint.Style.STROKE);
 
-    for (int i = 0; i < mComputedWidths.length - 1; i++)
+    int x[] = getColumnsX();
+    String sx = "";
+    for (int i = 0; i < x.length; i++)
     {
-      canvas.drawLine(mComputedWidths[i], 0, mComputedWidths[i], height, paint);
+      sx += x[i] + ",";
+      canvas.drawLine(x[i], 0, x[i], height, paint);
     }
-    for (int i = 0; i < mComputedHeights.length - 1; i++)
+    Log.d(LOGTAG, "Columns: " + sx);
+
+    int y[] = getRowsY();
+    String sy = "";
+    for (int i = 0; i < y.length; i++)
     {
-      canvas
-          .drawLine(0, mComputedHeights[i], width, mComputedHeights[i], paint);
+      sy += y[i] + ",";
+      canvas.drawLine(0, y[i], width, y[i], paint);
     }
+    Log.d(LOGTAG, "Rows: " + sy);
 
   }
 
@@ -500,6 +539,45 @@ public class HIGLayout extends ViewGroup
       mHeightenWeightsSum += mHeightenWeights[i];
   }
 
+  /**
+   * Calculate the positions of each column by adding column widths
+   * 
+   * @return
+   */
+  private int[] getColumnsX()
+  {
+    if (cacheColumnsX != null)
+      return cacheColumnsX;
+
+    int x[] = new int[mColCount + 1]; // add 1 left for padding left
+    x[0] = this.getPaddingLeft();
+
+    for (int i = 1; i <= mColCount; i++)
+      x[i] = x[i - 1] + mComputedWidths[i - 1];
+    // x[x.length - 1] = this.getWidth() - this.getPaddingRight();
+    cacheColumnsX = x;
+    return x;
+  }
+
+  /**
+   * Calculate the positions of each row by adding row heights
+   * 
+   * @return
+   */
+  private int[] getRowsY()
+  {
+    if (cacheRowsY != null)
+      return cacheRowsY;
+    int y[] = new int[mRowCount + 1];
+    y[0] = this.getPaddingTop();
+
+    for (int i = 1; i <= mRowCount; i++)
+      y[i] = y[i - 1] + mComputedHeights[i - 1];
+    // y[y.length - 1] = this.getHeight() - this.getPaddingBottom();
+    cacheRowsY = y;
+    return y;
+  }
+
   private void solveCycles(int g[], int lengths[])
   {
     /* TODO: handle cycles of length 1*/
@@ -571,10 +649,10 @@ public class HIGLayout extends ViewGroup
     }
   }
 
-  private int[] calcWidths()
+  private void calcWidths()
   {
-    int[] widths = new int[mColCount + 1]; // add last one which is the last
-                                           // border
+    // finds max with for
+    int[] widths = new int[mColCount];
     ArrayList<View>[] colComponents;
 
     colComponents = getViewsInColumns();
@@ -593,15 +671,12 @@ public class HIGLayout extends ViewGroup
         {
           for (int j = iComps.size() - 1; j >= 0; j--)
           {
-            View c = iComps.get(j);
-            // TODO: check if match_parent works
-            c.measure(MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED),
-                MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
-            Log.d(LOGTAG,
-                "W:: " + c.getTag() + " wants to be: " + c.getMeasuredWidth()
-                    + "x" + getMeasuredHeight());
-            int width = c.getVisibility() != View.GONE ? c.getMeasuredWidth()
-                : WIDTH_ZERO;
+            View childView = iComps.get(j);
+            int width = childView.getVisibility() != View.GONE ? childView
+                .getMeasuredWidth() : WIDTH_ZERO;
+            LayoutParams params = (LayoutParams)childView.getLayoutParams();
+            if (params.w < 0)
+              width = -params.w;
             maxWidth = (width > maxWidth) ? width : maxWidth;
           }
         }
@@ -610,14 +685,12 @@ public class HIGLayout extends ViewGroup
     }
     solveCycles(mColWidths, widths);
 
-    widths[widths.length - 1] = getMeasuredWidth() - getPaddingRight();
-
-    return widths;
+    mComputedWidths = widths;
   }
 
-  private int[] calcHeights()
+  private void calcHeights()
   {
-    int[] heights = new int[mRowCount + 1]; // add one for the bottom row
+    int[] heights = new int[mRowCount];
 
     ArrayList<View>[] rowComponents;
 
@@ -637,15 +710,13 @@ public class HIGLayout extends ViewGroup
         {
           for (int j = iComps.size() - 1; j >= 0; j--)
           {
-            View c = iComps.get(j);
-            c.measure(MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED),
-                MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
-            Log.d(LOGTAG,
-                "H:: " + c.getTag() + " wants to be: " + c.getMeasuredWidth()
-                    + "x" + getMeasuredHeight());
+            View childView = iComps.get(j);
 
-            int height = c.getVisibility() != View.GONE ? c.getMeasuredHeight()
-                : HEIGHT_ZERO;
+            int height = childView.getVisibility() != View.GONE ? childView
+                .getMeasuredHeight() : HEIGHT_ZERO;
+            LayoutParams params = (LayoutParams)childView.getLayoutParams();
+            if (params.h < 0)
+              height = -params.h;
             maxHeight = (height > maxHeight) ? height : maxHeight;
           }
         }
@@ -654,9 +725,7 @@ public class HIGLayout extends ViewGroup
     }
     solveCycles(mRowHeights, heights);
 
-    heights[heights.length - 1] = getMeasuredHeight() - getPaddingBottom();
-
-    return heights;
+    mComputedHeights = heights;
   }
 
   @SuppressWarnings("unchecked")
@@ -670,14 +739,17 @@ public class HIGLayout extends ViewGroup
       View view = getChildAt(i);
       LayoutParams params = (LayoutParams)view.getLayoutParams();
 
-      ArrayList<View> subList = (ArrayList<View>)list[params.x];
-      if (subList == null)
+      if (params.w == 1)
       {
-        subList = new ArrayList<View>();
-        list[params.x] = subList;
+        // only add objects when they occupy a single column
+        ArrayList<View> subList = (ArrayList<View>)list[params.x];
+        if (subList == null)
+        {
+          subList = new ArrayList<View>();
+          list[params.x] = subList;
+        }
+        subList.add(view);
       }
-      subList.add(view);
-
     }
 
     return (ArrayList<View>[])list;
@@ -693,13 +765,17 @@ public class HIGLayout extends ViewGroup
     {
       View view = getChildAt(i);
       LayoutParams params = (LayoutParams)view.getLayoutParams();
-      ArrayList<View> subList = (ArrayList<View>)list[params.y];
-      if (subList == null)
+      if (params.h == 1)
       {
-        subList = new ArrayList<View>();
-        list[params.y] = subList;
+        // only add objects when they occupy a single row
+        ArrayList<View> subList = (ArrayList<View>)list[params.y];
+        if (subList == null)
+        {
+          subList = new ArrayList<View>();
+          list[params.y] = subList;
+        }
+        subList.add(view);
       }
-      subList.add(view);
     }
     return (ArrayList<View>[])list;
   }
@@ -709,52 +785,18 @@ public class HIGLayout extends ViewGroup
   {
     int preferred = 0;
     int newLength;
-    for (int i = lengths.length - 2; i >= 0; i--)
+    for (int i = lengths.length - 1; i >= 0; i--)
       preferred += lengths[i];
 
     double unit = ((double)(desiredLength - preferred)) / (double)weightSum;
 
-    for (int i = lengths.length - 2; i >= 0; i--)
+    for (int i = lengths.length - 1; i >= 0; i--)
     {
       newLength = lengths[i] + (int)(unit * (double)weights[i]);
       // TODO: perhaps implement minimum lengths
       // lengths[i] = (newLength > minLengths[i]) ? newLength : minLengths[i];
       lengths[i] = newLength;
     }
-  }
-
-  /**
-   * returns array of x-coordinates of columns. First coordinate is stored in
-   * x[0] Reference to this array is cached, so data should not be modified.
-   */
-  int[] getColumnsX(int targetWidth, View v)
-  {
-    if (mComputedWidths != null)
-      return mComputedWidths;
-
-    mComputedWidths = calcWidths();
-
-    distributeSizeDifference(targetWidth, mComputedWidths, mWidenWeights,
-        mWidenWeightsSum);
-
-    return mComputedWidths;
-  }
-
-  /**
-   * returns array of y-coordinates of rows. First coordinate is stored in y[0].
-   * Reference to this array is cached, so data should not be modified.
-   */
-  int[] getRowsY(int targetHeight, View v)
-  {
-    if (mComputedHeights != null)
-      return mComputedHeights;
-
-    mComputedHeights = calcHeights();
-
-    distributeSizeDifference(targetHeight, mComputedHeights, mHeightenWeights,
-        mHeightenWeightsSum);
-
-    return mComputedHeights;
   }
 
   public static class LayoutParams extends ViewGroup.MarginLayoutParams
