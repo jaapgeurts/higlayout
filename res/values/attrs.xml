@@ -6,12 +6,13 @@
         <attr name="row_heights" format="string" />
         <attr name="column_weights" format="string" />
         <attr name="row_weights" format="string" />
+        <attr name="show_grid" format="boolean" />
     </declare-styleable>
     <declare-styleable name="HIGlayout_Layout">
         <attr name="layout_cellX" format="integer" min="0" />
         <attr name="layout_cellY" format="integer" min="0" />
-        <attr name="layout_width" format="integer" />
-        <attr name="layout_height" format="integer" />
+        <attr name="layout_spanX" format="integer" />
+        <attr name="layout_spanY" format="integer" />
         <attr name="layout_anchor" format="string" />
     </declare-styleable>
 
