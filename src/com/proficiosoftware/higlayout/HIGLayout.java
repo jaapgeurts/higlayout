@@ -190,6 +190,7 @@ public class HIGLayout extends ViewGroup
   @Override
   protected void onLayout(boolean changed, int l, int t, int r, int b)
   {
+    // TODO: should i position myself as well or just my children
     Log.d(LOGTAG, "onLayout(booleam,int,int,int,int)");
     final int count = getChildCount();
 
@@ -290,6 +291,9 @@ public class HIGLayout extends ViewGroup
       // width, height);
       // child.layout(l,t,r,b);
       Log.d(LOGTAG, child.getTag() + " must be: " + width + "x" + height);
+      // the child must be measured again to make sure it's shows correcty
+      child.measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
+          MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY));
       child.layout((int)compx, (int)compy, (int)(compx + width),
           (int)(compy + height));
     }
@@ -329,6 +333,8 @@ public class HIGLayout extends ViewGroup
 
     printComputedWidths();
     invalidate();
+
+    // TODO: should i set my own measured sizes here?
   }
 
   private void printComputedWidths()
