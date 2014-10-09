@@ -9,9 +9,11 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.util.AttributeSet;
 import android.util.Log;
+import android.util.MonthDisplayHelper;
 import android.util.TypedValue;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewParent;
 
 /*
  * HIGLayout.java - HIGLayout layout manager
@@ -85,10 +87,15 @@ public class HIGLayout extends ViewGroup
   // Holds the pixel positions of where the columns/row start
   private int[] cacheColumnsX;
   private int[] cacheRowsY;
+  private Paint mGridPaint = null;
+
+  // TODO: remove before release
+  private int mPassCount = 0;
 
   public HIGLayout(Context context)
   {
     super(context);
+
   }
 
   public HIGLayout(Context context, AttributeSet attrs)
@@ -117,6 +124,7 @@ public class HIGLayout extends ViewGroup
     try
     {
       String colw = a.getString(R.styleable.HIGlayout_column_widths);
+      // FIXME: RuntimeException is thrown when showing in eclipse designer
       if (colw == null)
         throw new RuntimeException("Missing attribute: column_widths");
       mColWidths = stringToIntArray(colw);
@@ -175,6 +183,10 @@ public class HIGLayout extends ViewGroup
     if (mShowGrid)
     {
       setWillNotDraw(false);
+      mGridPaint = new Paint();
+      mGridPaint.setColor(Color.GREEN);
+      mGridPaint.setStyle(Paint.Style.STROKE);
+
       Log.i(LOGTAG, "Grid visualization enabled");
     }
 
@@ -217,8 +229,10 @@ public class HIGLayout extends ViewGroup
   protected void onLayout(boolean changed, int l, int t, int r, int b)
   {
 
+    int w = r - l;
+    int h = b - t;
+    Log.d(LOGTAG, "Imposed dimension: " + w + "x" + h);
     // TODO: should I position myself as well or just my children?
-    Log.d(LOGTAG, "onLayout(booleam,int,int,int,int)");
     final int count = getChildCount();
 
     // Get the absolute column/row coordinates
@@ -330,29 +344,67 @@ public class HIGLayout extends ViewGroup
   @Override
   protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec)
   {
+    Log.d(LOGTAG, "Pass: " + mPassCount);
+    mPassCount++;
 
-    super.onMeasure(widthMeasureSpec, heightMeasureSpec);
-    Log.d(LOGTAG, "onMeasure(): " + getMeasuredWidth() + "x"
-        + getMeasuredHeight());
+    int widthMode = MeasureSpec.getMode(widthMeasureSpec);
+    int heightMode = MeasureSpec.getMode(heightMeasureSpec);
+    int imposedWidth = MeasureSpec.getSize(widthMeasureSpec);
+    int imposedHeight = MeasureSpec.getSize(heightMeasureSpec);
 
     // First ask all child views to measure and give us their preferred sizes
-    measureChildren(MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED),
-        MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
+    // TODO: should measure child with margins
+    measureChildren(widthMeasureSpec, heightMeasureSpec);
 
-    // Calculate widths/heights of each column/row and scale according the
-    // width of this view
-    calcWidths();
-    distributeSizeDifference(getMeasuredWidth()
-        - (getPaddingLeft() + getPaddingRight()), mComputedWidths,
-        mWidenWeights, mWidenWeightsSum);
+    ViewParent v = getParent();
+    Log.d(LOGTAG, "Parent: " + v.getClass().getName());
 
-    calcHeights();
-    distributeSizeDifference(getMeasuredHeight()
-        - (getPaddingTop() + getPaddingBottom()), mComputedHeights,
+    // // DEBUG
+    switch(heightMode)
+    {
+      case MeasureSpec.UNSPECIFIED:
+        Log.d(LOGTAG, "UNSPECIFIED");
+        break;
+      case MeasureSpec.EXACTLY:
+        Log.d(LOGTAG, "EXACTLY");
+        break;
+      case MeasureSpec.AT_MOST:
+        Log.d(LOGTAG, "AT_MOST");
+        break;
+    }
+    Log.d(LOGTAG, "Suggested Dimension: " + imposedWidth + "x" + imposedHeight);
+
+    // calculate our desired widths of the components without our padding
+    int calculatedWidth = calcWidths();
+    int calculatedHeight = calcHeights();
+
+    int cw = calculatedWidth + getPaddingLeft() + getPaddingRight();
+    int ch = calculatedHeight + getPaddingTop() + getPaddingBottom();
+    Log.d(LOGTAG, "Minimum Dimension: " + cw + "x" + ch);
+
+    // Adjust for parameters imposed by our parent.
+    // set preferredWidth (without padding).
+    int preferredWidth = calculatedWidth;
+    int preferredHeight = calculatedHeight;
+    if (widthMode == MeasureSpec.EXACTLY
+        || (widthMode == MeasureSpec.AT_MOST && preferredWidth > imposedWidth))
+      preferredWidth = imposedWidth - getPaddingLeft() - getPaddingTop();
+    if (heightMode == MeasureSpec.EXACTLY
+        || (heightMode == MeasureSpec.AT_MOST && preferredHeight > imposedHeight))
+      preferredHeight = imposedHeight - getPaddingTop() - getPaddingBottom();
+
+    // Scale according the preferredWidth/Height
+    distributeSizeDifference(preferredWidth, mComputedWidths, mWidenWeights,
+        mWidenWeightsSum);
+    distributeSizeDifference(preferredHeight, mComputedHeights,
         mHeightenWeights, mHeightenWeightsSum);
 
-    // TODO: should I set my own measured sizes here -> or did the super call
-    // do this for me?
+    // This is the width our view occupies
+    int finalWidth = preferredWidth + getPaddingLeft() + getPaddingRight();
+    int finalHeight = preferredHeight + getPaddingTop() + getPaddingBottom();
+
+    Log.d(LOGTAG, "Final Dimension: " + finalWidth + "x" + finalHeight);
+    setMeasuredDimension(finalWidth, finalHeight);
   }
 
   /**
@@ -368,21 +420,17 @@ public class HIGLayout extends ViewGroup
 
     int height = this.getHeight();
     int width = this.getWidth();
-    // TODO: move this paint out of onDraw
-    Paint paint = new Paint();
-    paint.setColor(Color.GREEN);
     float ht_px = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 1,
         getResources().getDisplayMetrics());
-    paint.setStrokeWidth(ht_px);
-    paint.setStyle(Paint.Style.STROKE);
+    mGridPaint.setStrokeWidth(ht_px);
 
     int x[] = getColumnsX();
     for (int i = 0; i < x.length; i++)
-      canvas.drawLine(x[i], 0, x[i], height, paint);
+      canvas.drawLine(x[i], 0, x[i], height, mGridPaint);
 
     int y[] = getRowsY();
     for (int i = 0; i < y.length; i++)
-      canvas.drawLine(0, y[i], width, y[i], paint);
+      canvas.drawLine(0, y[i], width, y[i], mGridPaint);
 
   }
 
@@ -658,10 +706,11 @@ public class HIGLayout extends ViewGroup
    * Calculate the widths of each column by finding the maximum width of all
    * components in that column
    */
-  private void calcWidths()
+  private int calcWidths()
   {
     // finds max with for
     int[] widths = new int[mColCount];
+    int totalWidth = 0;
     ArrayList<View>[] colComponents;
 
     colComponents = getViewsInColumns();
@@ -695,6 +744,10 @@ public class HIGLayout extends ViewGroup
     solveCycles(mColWidths, widths);
 
     mComputedWidths = widths;
+    for (int w : mComputedWidths)
+      totalWidth += w;
+
+    return totalWidth;
   }
 
   /**
@@ -702,9 +755,10 @@ public class HIGLayout extends ViewGroup
    * components in that row
    */
 
-  private void calcHeights()
+  private int calcHeights()
   {
     int[] heights = new int[mRowCount];
+    int totalHeight = 0;
 
     ArrayList<View>[] rowComponents;
 
@@ -740,6 +794,11 @@ public class HIGLayout extends ViewGroup
     solveCycles(mRowHeights, heights);
 
     mComputedHeights = heights;
+
+    for (int h : mComputedHeights)
+      totalHeight += h;
+
+    return totalHeight;
   }
 
   /**
@@ -827,6 +886,7 @@ public class HIGLayout extends ViewGroup
     }
   }
 
+  // TODO: handle margins.
   public static class LayoutParams extends ViewGroup.MarginLayoutParams
   {
     public int x = 0;
