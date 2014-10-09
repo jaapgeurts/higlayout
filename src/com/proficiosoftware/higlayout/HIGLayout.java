@@ -89,9 +89,6 @@ public class HIGLayout extends ViewGroup
   private int[] cacheRowsY;
   private Paint mGridPaint = null;
 
-  // TODO: remove before release
-  private int mPassCount = 0;
-
   public HIGLayout(Context context)
   {
     super(context);
@@ -231,7 +228,7 @@ public class HIGLayout extends ViewGroup
 
     int w = r - l;
     int h = b - t;
-    Log.d(LOGTAG, "Imposed dimension: " + w + "x" + h);
+
     // TODO: should I position myself as well or just my children?
     final int count = getChildCount();
 
@@ -344,9 +341,6 @@ public class HIGLayout extends ViewGroup
   @Override
   protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec)
   {
-    Log.d(LOGTAG, "Pass: " + mPassCount);
-    mPassCount++;
-
     int widthMode = MeasureSpec.getMode(widthMeasureSpec);
     int heightMode = MeasureSpec.getMode(heightMeasureSpec);
     int imposedWidth = MeasureSpec.getSize(widthMeasureSpec);
@@ -356,31 +350,12 @@ public class HIGLayout extends ViewGroup
     // TODO: should measure child with margins
     measureChildren(widthMeasureSpec, heightMeasureSpec);
 
-    ViewParent v = getParent();
-    Log.d(LOGTAG, "Parent: " + v.getClass().getName());
-
-    // // DEBUG
-    switch(heightMode)
-    {
-      case MeasureSpec.UNSPECIFIED:
-        Log.d(LOGTAG, "UNSPECIFIED");
-        break;
-      case MeasureSpec.EXACTLY:
-        Log.d(LOGTAG, "EXACTLY");
-        break;
-      case MeasureSpec.AT_MOST:
-        Log.d(LOGTAG, "AT_MOST");
-        break;
-    }
-    Log.d(LOGTAG, "Suggested Dimension: " + imposedWidth + "x" + imposedHeight);
-
     // calculate our desired widths of the components without our padding
     int calculatedWidth = calcWidths();
     int calculatedHeight = calcHeights();
 
     int cw = calculatedWidth + getPaddingLeft() + getPaddingRight();
     int ch = calculatedHeight + getPaddingTop() + getPaddingBottom();
-    Log.d(LOGTAG, "Minimum Dimension: " + cw + "x" + ch);
 
     // Adjust for parameters imposed by our parent.
     // set preferredWidth (without padding).
@@ -403,7 +378,6 @@ public class HIGLayout extends ViewGroup
     int finalWidth = preferredWidth + getPaddingLeft() + getPaddingRight();
     int finalHeight = preferredHeight + getPaddingTop() + getPaddingBottom();
 
-    Log.d(LOGTAG, "Final Dimension: " + finalWidth + "x" + finalHeight);
     setMeasuredDimension(finalWidth, finalHeight);
   }
 
