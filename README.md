@@ -153,6 +153,11 @@ This code can be found in the download file **examples/Demo2Dialog.java**.
 ### Download `HIGLayout` package
 If you want to use `HIGLayout`, feel free to <a href="http://www.autel.cz/dmi/HIGLayout1.0.zip">download</a> it. Good luck!
 
+Contribute
+__________
+
+You are welcome to contribute. You can clone, make a new branch, and make a pull request
+
 FAQ
 ---
 - Q: Why don't my buttons align with the grid.
