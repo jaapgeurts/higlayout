@@ -3,7 +3,7 @@ HIGLayout tutorial
 
 Original by Daniel Michalik (dmi@autel.cz), April 2002 (version 1.0a)
 
-Updated by Jaap Geurts (jaapg /a-t/ gmx - net), September 2014 (version 1.1)
+Updated by Jaap Geurts, September 2014 (version 1.1)
 
 What  developers are saying
 --------------------------
